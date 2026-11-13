@@ -1,0 +1,112 @@
+{
+  "id": "array-linear-search",
+  "title": "Linear Search: find 9 in [5, 2, 9, 1]",
+  "description": "Visualizes how linear search checks each array element until the target is found.",
+  "language": "python",
+  "track": "dsa",
+  "algorithm": "linear-search",
+  "input": {
+    "array": [5, 2, 9, 1],
+    "target": 9
+  },
+  "totalSteps": 6,
+  "steps": [
+    {
+      "step": 0,
+      "nodes": [
+        {"id": "0", "kind": "array-cell", "label": "Index 0", "value": 5, "position": {"x": 100, "y": 200}},
+        {"id": "1", "kind": "array-cell", "label": "Index 1", "value": 2, "position": {"x": 250, "y": 200}},
+        {"id": "2", "kind": "array-cell", "label": "Index 2", "value": 9, "position": {"x": 400, "y": 200}},
+        {"id": "3", "kind": "array-cell", "label": "Index 3", "value": 1, "position": {"x": 550, "y": 200}}
+      ],
+      "variables": [
+        {"name": "i", "value": 0, "type": "integer"},
+        {"name": "target", "value": 9, "type": "integer"},
+        {"name": "found", "value": false, "type": "boolean"}
+      ],
+      "explanation": "Initialize the array and target. Begin searching from index 0.",
+      "conceptTag": "initialization"
+    },
+    {
+      "step": 1,
+      "nodes": [
+        {"id": "0", "kind": "array-cell", "label": "Index 0", "value": 5, "position": {"x": 100, "y": 200}, "highlight": "comparing"},
+        {"id": "1", "kind": "array-cell", "label": "Index 1", "value": 2, "position": {"x": 250, "y": 200}},
+        {"id": "2", "kind": "array-cell", "label": "Index 2", "value": 9, "position": {"x": 400, "y": 200}},
+        {"id": "3", "kind": "array-cell", "label": "Index 3", "value": 1, "position": {"x": 550, "y": 200}}
+      ],
+      "variables": [
+        {"name": "i", "value": 0, "type": "integer"},
+        {"name": "target", "value": 9, "type": "integer"},
+        {"name": "found", "value": false, "type": "boolean"}
+      ],
+      "explanation": "Compare array[0] = 5 with target 9. They are not equal.",
+      "conceptTag": "comparison"
+    },
+    {
+      "step": 2,
+      "nodes": [
+        {"id": "0", "kind": "array-cell", "label": "Index 0", "value": 5, "position": {"x": 100, "y": 200}, "highlight": "visited"},
+        {"id": "1", "kind": "array-cell", "label": "Index 1", "value": 2, "position": {"x": 250, "y": 200}, "highlight": "comparing"},
+        {"id": "2", "kind": "array-cell", "label": "Index 2", "value": 9, "position": {"x": 400, "y": 200}},
+        {"id": "3", "kind": "array-cell", "label": "Index 3", "value": 1, "position": {"x": 550, "y": 200}}
+      ],
+      "variables": [
+        {"name": "i", "value": 1, "type": "integer"},
+        {"name": "target", "value": 9, "type": "integer"},
+        {"name": "found", "value": false, "type": "boolean"}
+      ],
+      "explanation": "Move to index 1. Compare array[1] = 2 with target 9. They are not equal.",
+      "conceptTag": "comparison"
+    },
+    {
+      "step": 3,
+      "nodes": [
+        {"id": "0", "kind": "array-cell", "label": "Index 0", "value": 5, "position": {"x": 100, "y": 200}, "highlight": "visited"},
+        {"id": "1", "kind": "array-cell", "label": "Index 1", "value": 2, "position": {"x": 250, "y": 200}, "highlight": "visited"},
+        {"id": "2", "kind": "array-cell", "label": "Index 2", "value": 9, "position": {"x": 400, "y": 200}, "highlight": "comparing"},
+        {"id": "3", "kind": "array-cell", "label": "Index 3", "value": 1, "position": {"x": 550, "y": 200}}
+      ],
+      "variables": [
+        {"name": "i", "value": 2, "type": "integer"},
+        {"name": "target", "value": 9, "type": "integer"},
+        {"name": "found", "value": false, "type": "boolean"}
+      ],
+      "explanation": "Move to index 2. Compare array[2] = 9 with target 9. A match is found.",
+      "conceptTag": "comparison"
+    },
+    {
+      "step": 4,
+      "nodes": [
+        {"id": "0", "kind": "array-cell", "label": "Index 0", "value": 5, "position": {"x": 100, "y": 200}, "highlight": "visited"},
+        {"id": "1", "kind": "array-cell", "label": "Index 1", "value": 2, "position": {"x": 250, "y": 200}, "highlight": "visited"},
+        {"id": "2", "kind": "array-cell", "label": "Index 2", "value": 9, "position": {"x": 400, "y": 200}, "highlight": "success"},
+        {"id": "3", "kind": "array-cell", "label": "Index 3", "value": 1, "position": {"x": 550, "y": 200}}
+      ],
+      "variables": [
+        {"name": "i", "value": 2, "type": "integer"},
+        {"name": "target", "value": 9, "type": "integer"},
+        {"name": "found", "value": true, "type": "boolean"}
+      ],
+      "explanation": "Target matches array[2]. Mark element as found and set found to true.",
+      "conceptTag": "target-found"
+    },
+    {
+      "step": 5,
+      "nodes": [
+        {"id": "0", "kind": "array-cell", "label": "Index 0", "value": 5, "position": {"x": 100, "y": 200}, "highlight": "visited"},
+        {"id": "1", "kind": "array-cell", "label": "Index 1", "value": 2, "position": {"x": 250, "y": 200}, "highlight": "visited"},
+        {"id": "2", "kind": "array-cell", "label": "Index 2", "value": 9, "position": {"x": 400, "y": 200}, "highlight": "success"},
+        {"id": "3", "kind": "array-cell", "label": "Index 3", "value": 1, "position": {"x": 550, "y": 200}}
+      ],
+      "variables": [
+        {"name": "i", "value": 2, "type": "integer"},
+        {"name": "target", "value": 9, "type": "integer"},
+        {"name": "found", "value": true, "type": "boolean"},
+        {"name": "resultIndex", "value": 2, "type": "integer"}
+      ],
+      "explanation": "Linear search completed successfully. Target 9 was found at index 2.",
+      "conceptTag": "completed"
+    }
+  ]
+}
