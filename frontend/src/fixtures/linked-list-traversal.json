@@ -1,0 +1,141 @@
+{
+  "id": "linked-list-traversal",
+  "title": "Linked List Traversal: 5 → 2 → 9 → 1",
+  "description": "Visualizes traversal of a singly linked list from head to null.",
+  "language": "python",
+  "track": "dsa",
+  "algorithm": "linked-list-traversal",
+  "input": {
+    "values": [5, 2, 9, 1]
+  },
+  "totalSteps": 6,
+  "steps": [
+    {
+      "step": 0,
+      "nodes": [
+        {"id": "A", "kind": "linked-list-node", "label": "Node A", "value": 5, "position": {"x": 100, "y": 200}},
+        {"id": "B", "kind": "linked-list-node", "label": "Node B", "value": 2, "position": {"x": 300, "y": 200}},
+        {"id": "C", "kind": "linked-list-node", "label": "Node C", "value": 9, "position": {"x": 500, "y": 200}},
+        {"id": "D", "kind": "linked-list-node", "label": "Node D", "value": 1, "position": {"x": 700, "y": 200}}
+      ],
+      "edges": [
+        {"id": "edge-A-B", "from": "A", "to": "B", "directed": true, "highlight": "idle"},
+        {"id": "edge-B-C", "from": "B", "to": "C", "directed": true, "highlight": "idle"},
+        {"id": "edge-C-D", "from": "C", "to": "D", "directed": true, "highlight": "idle"}
+      ],
+      "variables": [
+        {"name": "current", "value": "A", "type": "pointer", "referencesNodeId": "A"},
+        {"name": "position", "value": 0, "type": "integer"},
+        {"name": "remaining", "value": 4, "type": "integer"}
+      ],
+      "explanation": "Initialize the linked list. Set current to the head node A.",
+      "conceptTag": "initialization"
+    },
+    {
+      "step": 1,
+      "nodes": [
+        {"id": "A", "kind": "linked-list-node", "label": "Node A", "value": 5, "position": {"x": 100, "y": 200}, "highlight": "active"},
+        {"id": "B", "kind": "linked-list-node", "label": "Node B", "value": 2, "position": {"x": 300, "y": 200}},
+        {"id": "C", "kind": "linked-list-node", "label": "Node C", "value": 9, "position": {"x": 500, "y": 200}},
+        {"id": "D", "kind": "linked-list-node", "label": "Node D", "value": 1, "position": {"x": 700, "y": 200}}
+      ],
+      "edges": [
+        {"id": "edge-A-B", "from": "A", "to": "B", "directed": true, "highlight": "idle"},
+        {"id": "edge-B-C", "from": "B", "to": "C", "directed": true, "highlight": "idle"},
+        {"id": "edge-C-D", "from": "C", "to": "D", "directed": true, "highlight": "idle"}
+      ],
+      "variables": [
+        {"name": "current", "value": "A", "type": "pointer", "referencesNodeId": "A"},
+        {"name": "position", "value": 0, "type": "integer"},
+        {"name": "remaining", "value": 4, "type": "integer"}
+      ],
+      "explanation": "Visit Node A and read its value 5.",
+      "conceptTag": "traversal"
+    },
+    {
+      "step": 2,
+      "nodes": [
+        {"id": "A", "kind": "linked-list-node", "label": "Node A", "value": 5, "position": {"x": 100, "y": 200}, "highlight": "visited"},
+        {"id": "B", "kind": "linked-list-node", "label": "Node B", "value": 2, "position": {"x": 300, "y": 200}, "highlight": "active"},
+        {"id": "C", "kind": "linked-list-node", "label": "Node C", "value": 9, "position": {"x": 500, "y": 200}},
+        {"id": "D", "kind": "linked-list-node", "label": "Node D", "value": 1, "position": {"x": 700, "y": 200}}
+      ],
+      "edges": [
+        {"id": "edge-A-B", "from": "A", "to": "B", "directed": true, "highlight": "visited"},
+        {"id": "edge-B-C", "from": "B", "to": "C", "directed": true, "highlight": "active"},
+        {"id": "edge-C-D", "from": "C", "to": "D", "directed": true, "highlight": "idle"}
+      ],
+      "variables": [
+        {"name": "current", "value": "B", "type": "pointer", "referencesNodeId": "B"},
+        {"name": "position", "value": 1, "type": "integer"},
+        {"name": "remaining", "value": 3, "type": "integer"}
+      ],
+      "explanation": "Follow the next pointer to Node B and read its value 2.",
+      "conceptTag": "traversal"
+    },
+    {
+      "step": 3,
+      "nodes": [
+        {"id": "A", "kind": "linked-list-node", "label": "Node A", "value": 5, "position": {"x": 100, "y": 200}, "highlight": "visited"},
+        {"id": "B", "kind": "linked-list-node", "label": "Node B", "value": 2, "position": {"x": 300, "y": 200}, "highlight": "visited"},
+        {"id": "C", "kind": "linked-list-node", "label": "Node C", "value": 9, "position": {"x": 500, "y": 200}, "highlight": "active"},
+        {"id": "D", "kind": "linked-list-node", "label": "Node D", "value": 1, "position": {"x": 700, "y": 200}}
+      ],
+      "edges": [
+        {"id": "edge-A-B", "from": "A", "to": "B", "directed": true, "highlight": "visited"},
+        {"id": "edge-B-C", "from": "B", "to": "C", "directed": true, "highlight": "visited"},
+        {"id": "edge-C-D", "from": "C", "to": "D", "directed": true, "highlight": "active"}
+      ],
+      "variables": [
+        {"name": "current", "value": "C", "type": "pointer", "referencesNodeId": "C"},
+        {"name": "position", "value": 2, "type": "integer"},
+        {"name": "remaining", "value": 2, "type": "integer"}
+      ],
+      "explanation": "Follow the next pointer to Node C and read its value 9.",
+      "conceptTag": "traversal"
+    },
+    {
+      "step": 4,
+      "nodes": [
+        {"id": "A", "kind": "linked-list-node", "label": "Node A", "value": 5, "position": {"x": 100, "y": 200}, "highlight": "visited"},
+        {"id": "B", "kind": "linked-list-node", "label": "Node B", "value": 2, "position": {"x": 300, "y": 200}, "highlight": "visited"},
+        {"id": "C", "kind": "linked-list-node", "label": "Node C", "value": 9, "position": {"x": 500, "y": 200}, "highlight": "visited"},
+        {"id": "D", "kind": "linked-list-node", "label": "Node D", "value": 1, "position": {"x": 700, "y": 200}, "highlight": "active"}
+      ],
+      "edges": [
+        {"id": "edge-A-B", "from": "A", "to": "B", "directed": true, "highlight": "visited"},
+        {"id": "edge-B-C", "from": "B", "to": "C", "directed": true, "highlight": "visited"},
+        {"id": "edge-C-D", "from": "C", "to": "D", "directed": true, "highlight": "visited"}
+      ],
+      "variables": [
+        {"name": "current", "value": "D", "type": "pointer", "referencesNodeId": "D"},
+        {"name": "position", "value": 3, "type": "integer"},
+        {"name": "remaining", "value": 1, "type": "integer"}
+      ],
+      "explanation": "Follow the next pointer to Node D and read its value 1.",
+      "conceptTag": "traversal"
+    },
+    {
+      "step": 5,
+      "nodes": [
+        {"id": "A", "kind": "linked-list-node", "label": "Node A", "value": 5, "position": {"x": 100, "y": 200}, "highlight": "visited"},
+        {"id": "B", "kind": "linked-list-node", "label": "Node B", "value": 2, "position": {"x": 300, "y": 200}, "highlight": "visited"},
+        {"id": "C", "kind": "linked-list-node", "label": "Node C", "value": 9, "position": {"x": 500, "y": 200}, "highlight": "visited"},
+        {"id": "D", "kind": "linked-list-node", "label": "Node D", "value": 1, "position": {"x": 700, "y": 200}, "highlight": "visited"}
+      ],
+      "edges": [
+        {"id": "edge-A-B", "from": "A", "to": "B", "directed": true, "highlight": "visited"},
+        {"id": "edge-B-C", "from": "B", "to": "C", "directed": true, "highlight": "visited"},
+        {"id": "edge-C-D", "from": "C", "to": "D", "directed": true, "highlight": "visited"}
+      ],
+      "variables": [
+        {"name": "current", "value": null, "type": "pointer"},
+        {"name": "position", "value": 4, "type": "integer"},
+        {"name": "remaining", "value": 0, "type": "integer"}
+      ],
+      "explanation": "The current pointer is now null. All four nodes have been visited and traversal is complete.",
+      "conceptTag": "completed"
+    }
+  ]
+}
+
