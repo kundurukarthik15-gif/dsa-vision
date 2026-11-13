@@ -160,4 +160,47 @@ describe("VEP Schema Validation", () => {
     const parsed = TraceSchema.parse(validRefTrace);
     expect(parsed.steps[0].variables[0].referencesNodeId).toBe("A");
   });
+
+  it("should validate optional sourceLine metadata on steps and code on trace", () => {
+    const traceWithCode = structuredClone(arrayFixture);
+    traceWithCode.code = "function test() {}";
+    traceWithCode.steps[0].sourceLine = 2;
+    traceWithCode.steps[1].sourceLine = 3;
+
+    expect(isValidTrace(traceWithCode)).toBe(true);
+    const parsed = validateTrace(traceWithCode);
+    expect(parsed.code).toBe("function test() {}");
+    expect(parsed.steps[0].sourceLine).toBe(2);
+    expect(parsed.steps[1].sourceLine).toBe(3);
+    // Backward compatibility: step without sourceLine is still valid
+    expect(parsed.steps[2].sourceLine).toBeUndefined();
+  });
+
+  it("should reject invalid sourceLine values", () => {
+    const zeroLineTrace = structuredClone(arrayFixture);
+    (zeroLineTrace.steps[0] as Record<string, unknown>).sourceLine = 0;
+    expect(() => TraceSchema.parse(zeroLineTrace)).toThrow();
+
+    const negativeLineTrace = structuredClone(arrayFixture);
+    (negativeLineTrace.steps[0] as Record<string, unknown>).sourceLine = -5;
+    expect(() => TraceSchema.parse(negativeLineTrace)).toThrow();
+
+    const floatLineTrace = structuredClone(arrayFixture);
+    (floatLineTrace.steps[0] as Record<string, unknown>).sourceLine = 2.5;
+    expect(() => TraceSchema.parse(floatLineTrace)).toThrow();
+  });
+
+  it("should validate all supported LanguageEnum values including javascript", () => {
+    const languages = ["c", "cpp", "java", "python", "javascript", "typescript", "backend"] as const;
+    for (const lang of languages) {
+      const trace = structuredClone(arrayFixture);
+      trace.language = lang;
+      expect(isValidTrace(trace)).toBe(true);
+      expect(validateTrace(trace).language).toBe(lang);
+    }
+
+    const invalidLangTrace = structuredClone(arrayFixture);
+    (invalidLangTrace as Record<string, unknown>).language = "ruby";
+    expect(isValidTrace(invalidLangTrace)).toBe(false);
+  });
 });

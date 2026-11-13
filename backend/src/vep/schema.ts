@@ -38,6 +38,7 @@ export const LanguageEnum = z.enum([
   "cpp",
   "java",
   "python",
+  "javascript",
   "typescript",
   "backend",
 ]);
@@ -108,6 +109,7 @@ export const StepSchema = z.object({
   variables: z.array(VariableSchema).default([]),
   explanation: z.string(),
   conceptTag: z.string().optional(),
+  sourceLine: z.number().int().positive().optional(),
 }).strict()
   .refine(
     (step) => {
@@ -171,6 +173,7 @@ export const TraceSchema = z.object({
   language: LanguageEnum,
   track: TrackEnum,
   algorithm: z.string(),
+  code: z.string().optional(),
   input: z.unknown().optional(),
   totalSteps: z.number().int().positive(),
   steps: z.array(StepSchema).min(1),

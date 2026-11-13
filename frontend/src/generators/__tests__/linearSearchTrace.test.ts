@@ -33,17 +33,20 @@ describe('generateLinearSearchTrace', () => {
 
     // Step 0: initialization
     expect(trace.steps[0].conceptTag).toBe('initialization');
+    expect(trace.steps[0].sourceLine).toBe(2);
     expect(trace.steps[0].nodes).toHaveLength(4);
     expect(trace.steps[0].nodes.every((n) => n.highlight === 'idle')).toBe(true);
 
     // Step 1: comparison at index 0 (match)
     const compareStep = trace.steps[1];
     expect(compareStep.conceptTag).toBe('comparison');
+    expect(compareStep.sourceLine).toBe(3);
     expect(compareStep.nodes[0].highlight).toBe('comparing');
 
     // Second-to-last step: target-found
     const foundStep = trace.steps[trace.steps.length - 2];
     expect(foundStep.conceptTag).toBe('target-found');
+    expect(foundStep.sourceLine).toBe(4);
     expect(foundStep.nodes[0].highlight).toBe('success');
     const foundVar = foundStep.variables.find((v) => v.name === 'found');
     expect(foundVar?.value).toBe(true);
@@ -51,6 +54,7 @@ describe('generateLinearSearchTrace', () => {
     // Last step: completed
     const done = lastStep(trace);
     expect(done.conceptTag).toBe('completed');
+    expect(done.sourceLine).toBe(4);
     const resultVar = done.variables.find((v) => v.name === 'resultIndex');
     expect(resultVar?.value).toBe(0);
   });
@@ -100,8 +104,14 @@ describe('generateLinearSearchTrace', () => {
     // 1 init + 3 compare + 1 not-found completion = 5 steps
     expect(trace.steps).toHaveLength(5);
 
+    expect(trace.steps[0].sourceLine).toBe(2);
+    expect(trace.steps[1].sourceLine).toBe(3);
+    expect(trace.steps[2].sourceLine).toBe(3);
+    expect(trace.steps[3].sourceLine).toBe(3);
+
     const done = lastStep(trace);
     expect(done.conceptTag).toBe('completed');
+    expect(done.sourceLine).toBe(7);
     expect(done.variables.find((v) => v.name === 'resultIndex')?.value).toBe(-1);
     expect(done.variables.find((v) => v.name === 'found')?.value).toBe(false);
     // i should hold the last index actually checked (n-1), not n
@@ -110,7 +120,6 @@ describe('generateLinearSearchTrace', () => {
     expect(done.nodes.every((n) => n.highlight === 'visited')).toBe(true);
   });
 
-  // â”€â”€ 5. Empty array â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it('handles empty array', () => {
     const trace = generateLinearSearchTrace({ array: [], target: 5 });
 
@@ -118,13 +127,14 @@ describe('generateLinearSearchTrace', () => {
     // 1 init + 1 completed = 2 steps
     expect(trace.steps).toHaveLength(2);
     expect(trace.steps[0].nodes).toHaveLength(0);
+    expect(trace.steps[0].sourceLine).toBe(2);
 
     const done = lastStep(trace);
     expect(done.conceptTag).toBe('completed');
+    expect(done.sourceLine).toBe(7);
     expect(done.variables.find((v) => v.name === 'resultIndex')?.value).toBe(-1);
   });
 
-  // â”€â”€ 6. Duplicate values â€” stop at first match â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it('stops at first occurrence when duplicates exist', () => {
     const trace = generateLinearSearchTrace({ array: [3, 7, 7, 7], target: 7 });
 
@@ -135,6 +145,7 @@ describe('generateLinearSearchTrace', () => {
     const done = lastStep(trace);
     // resultIndex must be 1, not 2 or 3
     expect(done.variables.find((v) => v.name === 'resultIndex')?.value).toBe(1);
+    expect(done.sourceLine).toBe(4);
 
     // Nodes at index 2 and 3 should be idle in all steps (never visited/compared)
     for (const step of trace.steps) {
@@ -147,7 +158,6 @@ describe('generateLinearSearchTrace', () => {
     }
   });
 
-  // â”€â”€ 7. validateTrace round-trip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it('all generated traces pass validateTrace independently', () => {
     const cases: Array<{ array: number[]; target: number }> = [
       { array: [9], target: 9 },
@@ -164,9 +174,41 @@ describe('generateLinearSearchTrace', () => {
       // Sequential step indices
       trace.steps.forEach((step, idx) => {
         expect(step.step).toBe(idx);
+        expect(typeof step.sourceLine).toBe('number');
+        expect(step.sourceLine).toBeGreaterThan(0);
       });
       // totalSteps === actual steps
       expect(trace.totalSteps).toBe(trace.steps.length);
     }
+  });
+
+  it('includes canonical source code and valid sourceLine on every step', () => {
+    const trace = generateLinearSearchTrace({ array: [10, 20, 30], target: 20 });
+
+    expect(trace.language).toBe('javascript');
+    expect(trace.code).toBeDefined();
+    expect(typeof trace.code).toBe('string');
+    expect(trace.code).toContain('function linearSearch(arr, target)');
+
+    const lines = trace.code!.split('\n');
+    expect(lines.length).toBe(8);
+
+    // Verify every step's sourceLine points to a valid 1-based line in trace.code
+    trace.steps.forEach((step) => {
+      expect(step.sourceLine).toBeDefined();
+      expect(step.sourceLine).toBeGreaterThanOrEqual(1);
+      expect(step.sourceLine).toBeLessThanOrEqual(lines.length);
+    });
+
+    // Step 0: loop initialization (Line 2)
+    expect(trace.steps[0].sourceLine).toBe(2);
+    // Step 1: compare array[0] (Line 3)
+    expect(trace.steps[1].sourceLine).toBe(3);
+    // Step 2: compare array[1] (Line 3)
+    expect(trace.steps[2].sourceLine).toBe(3);
+    // Step 3: found match (Line 4: return i;)
+    expect(trace.steps[3].sourceLine).toBe(4);
+    // Step 4: completed (Line 4)
+    expect(trace.steps[4].sourceLine).toBe(4);
   });
 });

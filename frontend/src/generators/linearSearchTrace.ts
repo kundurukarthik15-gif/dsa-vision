@@ -11,6 +11,19 @@ export interface LinearSearchInput {
 }
 
 // ---------------------------------------------------------------------------
+// Canonical source code representation (1-based line indexing)
+// ---------------------------------------------------------------------------
+
+export const LINEAR_SEARCH_CODE = `function linearSearch(arr, target) {
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i] === target) {
+      return i;
+    }
+  }
+  return -1;
+}`;
+
+// ---------------------------------------------------------------------------
 // Layout constants â€” match the reference fixture exactly
 // ---------------------------------------------------------------------------
 
@@ -88,6 +101,7 @@ export function generateLinearSearchTrace(input: LinearSearchInput): Trace {
     variables: Variable[];
     explanation: string;
     conceptTag?: string;
+    sourceLine?: number;
   };
 
   const steps: StepInput[] = [];
@@ -106,10 +120,11 @@ export function generateLinearSearchTrace(input: LinearSearchInput): Trace {
         ? 'Array is empty. Nothing to search.'
         : `Initialize the array and target. Begin searching from index 0.`,
     conceptTag: 'initialization',
+    sourceLine: 2,
   });
 
   if (array.length === 0) {
-    // No comparison steps â€” jump straight to completion
+    // No comparison steps — jump straight to completion
     steps.push({
       step: 1,
       nodes: [],
@@ -121,6 +136,7 @@ export function generateLinearSearchTrace(input: LinearSearchInput): Trace {
       ],
       explanation: 'Array is empty. Linear search completed with no result.',
       conceptTag: 'completed',
+      sourceLine: 7,
     });
   } else {
     let foundAt: number | null = null;
@@ -135,9 +151,10 @@ export function generateLinearSearchTrace(input: LinearSearchInput): Trace {
         nodes: buildNodes(array, i, null, false),
         variables: baseVars(i, target, false),
         explanation: isMatch
-          ? `Compare array[${i}] = ${array[i]} with target ${target}. They are equal â€” a match will be recorded.`
+          ? `Compare array[${i}] = ${array[i]} with target ${target}. They are equal — a match will be recorded.`
           : `Compare array[${i}] = ${array[i]} with target ${target}. They are not equal.`,
         conceptTag: 'comparison',
+        sourceLine: 3,
       });
 
       if (isMatch) {
@@ -154,6 +171,7 @@ export function generateLinearSearchTrace(input: LinearSearchInput): Trace {
           ],
           explanation: `Target matches array[${i}]. Mark element as found and set found to true.`,
           conceptTag: 'target-found',
+          sourceLine: 4,
         });
 
         // "Completed" step: add resultIndex
@@ -168,6 +186,7 @@ export function generateLinearSearchTrace(input: LinearSearchInput): Trace {
           ],
           explanation: `Linear search completed successfully. Target ${target} was found at index ${i}.`,
           conceptTag: 'completed',
+          sourceLine: 4,
         });
 
         break; // stop at first match
@@ -191,6 +210,7 @@ export function generateLinearSearchTrace(input: LinearSearchInput): Trace {
         ],
         explanation: `Linear search completed. Target ${target} was not found in the array.`,
         conceptTag: 'completed',
+        sourceLine: 7,
       });
     }
   }
@@ -204,14 +224,15 @@ export function generateLinearSearchTrace(input: LinearSearchInput): Trace {
     title: `Linear Search: find ${target} in [${array.join(', ')}]`,
     description:
       'Visualizes how linear search checks each array element until the target is found.',
-    language: 'python' as const,
+    language: 'javascript' as const,
     track: 'dsa' as const,
     algorithm: 'linear-search',
+    code: LINEAR_SEARCH_CODE,
     input: { array, target },
     totalSteps: steps.length,
     steps: steps.map((s) => ({
       ...s,
-      // edges default [] â€” omitting keeps Zod default; include explicitly for clarity
+      // edges default [] — omitting keeps Zod default; include explicitly for clarity
       edges: [],
     })),
   };
