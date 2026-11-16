@@ -34,7 +34,16 @@ describe("VEP Schema Validation", () => {
     const result = validateTrace(linkedListFixture);
 
     expect(result.id).toBe("linked-list-traversal");
+    expect(result.language).toBe("python");
+    expect(result.code).toBeDefined();
+    expect(result.code).toContain("def traverse(head):");
     expect(result.steps).toHaveLength(6);
+    expect(result.steps[0].sourceLine).toBe(2);
+    expect(result.steps[1].sourceLine).toBe(6);
+    expect(result.steps[2].sourceLine).toBe(6);
+    expect(result.steps[3].sourceLine).toBe(6);
+    expect(result.steps[4].sourceLine).toBe(6);
+    expect(result.steps[5].sourceLine).toBe(5);
   });
 
   it("should identify both fixtures as valid traces", () => {

@@ -6,12 +6,33 @@ import { LINEAR_SEARCH_CODE } from '../generators/linearSearchTrace';
 // Syntax highlight tokenizer for clean dependency-free rendering
 // ---------------------------------------------------------------------------
 
-const JS_KEYWORDS = new Set([
+const CODE_KEYWORDS = new Set([
+  // JavaScript / TypeScript
   'function',
-  'for',
   'let',
   'const',
   'var',
+  'null',
+  'undefined',
+  // Python
+  'def',
+  'is',
+  'not',
+  'None',
+  'print',
+  'elif',
+  'class',
+  'import',
+  'from',
+  'as',
+  'pass',
+  'lambda',
+  'yield',
+  'True',
+  'False',
+  // Shared
+  'for',
+  'in',
   'if',
   'else',
   'return',
@@ -20,26 +41,26 @@ const JS_KEYWORDS = new Set([
   'continue',
   'true',
   'false',
-  'null',
-  'undefined',
 ]);
 
 interface Token {
   text: string;
-  type: 'keyword' | 'number' | 'string' | 'identifier' | 'punctuation' | 'whitespace';
+  type: 'keyword' | 'number' | 'string' | 'identifier' | 'comment' | 'punctuation' | 'whitespace';
 }
 
 function tokenizeLine(line: string): Token[] {
   const tokens: Token[] = [];
-  const regex = /(\s+)|([a-zA-Z_$][a-zA-Z0-9_$]*)|(\d+)|(["'][^"']*["'])|([^\s\w])/g;
+  const regex = /(\s+)|(#.*$|\/\/.*$)|([a-zA-Z_$][a-zA-Z0-9_$]*)|(\d+)|(["'][^"']*["'])|([^\s\w])/g;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(line)) !== null) {
-    const [full, whitespace, word, number, str, punct] = match;
+    const [full, whitespace, comment, word, number, str, punct] = match;
     if (whitespace) {
       tokens.push({ text: full, type: 'whitespace' });
+    } else if (comment) {
+      tokens.push({ text: full, type: 'comment' });
     } else if (word) {
-      if (JS_KEYWORDS.has(word)) {
+      if (CODE_KEYWORDS.has(word)) {
         tokens.push({ text: full, type: 'keyword' });
       } else {
         tokens.push({ text: full, type: 'identifier' });
@@ -61,6 +82,7 @@ const TOKEN_COLORS: Record<Token['type'], string> = {
   number: '#d19a66',      // amber/orange
   string: '#98c379',      // green
   identifier: '#e5c07b',  // warm yellow/gold for params & identifiers
+  comment: '#5c6370',     // muted comment gray
   punctuation: '#abb2bf', // muted chalk
   whitespace: 'inherit',
 };
@@ -115,6 +137,9 @@ const SourceCodePanel = () => {
     const ext = FILE_EXTENSIONS[trace.language] ?? '';
     if (trace.algorithm === 'linear-search') {
       return `linearSearch${ext}`;
+    }
+    if (trace.algorithm === 'linked-list-traversal') {
+      return `linkedListTraversal${ext}`;
     }
     return trace.algorithm ? `${trace.algorithm}${ext}` : (trace.title ?? 'Source Code');
   }, [trace]);
