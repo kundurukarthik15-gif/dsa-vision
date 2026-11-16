@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useRef, useEffect } from 'react';
 import { usePlaybackStore, useCurrentStep } from '../store/playbackStore';
 import { LINEAR_SEARCH_CODE } from '../generators/linearSearchTrace';
 
@@ -119,6 +119,27 @@ const SourceCodePanel = () => {
   const currentStep = useCurrentStep();
 
   const activeLine = currentStep?.sourceLine ?? null;
+  const activeLineRef = useRef<HTMLDivElement | null>(null);
+
+  // Automatically scroll the active line into view when activeLine changes
+  useEffect(() => {
+    if (activeLine === null) {
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      if (activeLineRef.current) {
+        activeLineRef.current.scrollIntoView({
+          block: 'nearest',
+          behavior: 'smooth',
+        });
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [activeLine]);
 
   // Determine code string: trace.code, or fallback to algorithm default
   const codeString = useMemo(() => {
@@ -256,6 +277,7 @@ const SourceCodePanel = () => {
             return (
               <div
                 key={lineNum}
+                ref={isActive ? activeLineRef : null}
                 style={{
                   display: 'flex',
                   alignItems: 'stretch',

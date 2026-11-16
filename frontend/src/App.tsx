@@ -3,28 +3,13 @@ import { usePlaybackStore, useCurrentStep } from './store/playbackStore';
 import VisualizationCanvas from './components/VisualizationCanvas';
 import SourceCodePanel from './components/SourceCodePanel';
 import PlaybackControls from './components/PlaybackControls';
-import linkedListTraversal from './fixtures/linked-list-traversal.json';
-import { validateTrace } from './types/vep';
+import StepScrubber from './components/StepScrubber';
+import VariableWatchPanel from './components/VariableWatchPanel';
+import { registryEntries, getTrace } from './generators/registry';
 import { generateLinearSearchTrace } from './generators/linearSearchTrace';
 
 // ---------------------------------------------------------------------------
-// Static fixtures (linked-list only — linear search is now fully dynamic)
-// array-linear-search.json is kept on disk for reference and backend tests.
-// ---------------------------------------------------------------------------
-
-const FIXTURES = {
-  'linked-list-traversal': {
-    id: 'linked-list-traversal',
-    name: 'Linked List Traversal',
-    trace: validateTrace(linkedListTraversal),
-  },
-} as const;
-
-// All selectable visualization modes (linear search is dynamic, not a fixture)
-type VisualizationMode = 'array-linear-search' | keyof typeof FIXTURES;
-
-// ---------------------------------------------------------------------------
-// Input parsing helpers
+// Input parsing helpers for Linear Search
 // ---------------------------------------------------------------------------
 
 function parseArrayInput(raw: string): { values: number[] } | { error: string } {
@@ -61,18 +46,19 @@ function parseTargetInput(raw: string): { value: number } | { error: string } {
 }
 
 // ---------------------------------------------------------------------------
-// Default linear search inputs — match the reference fixture
+// Default linear search inputs
 // ---------------------------------------------------------------------------
 
 const DEFAULT_ARRAY = '5, 2, 9, 1';
 const DEFAULT_TARGET = '9';
 
 // ---------------------------------------------------------------------------
-// App
+// App Component
 // ---------------------------------------------------------------------------
 
 function App() {
-  const [mode, setMode] = useState<VisualizationMode>('array-linear-search');
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState<string>('linear-search');
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Linear search form state
   const [arrayInput, setArrayInput] = useState(DEFAULT_ARRAY);
@@ -109,37 +95,51 @@ function App() {
 
       if (!valid) return false;
 
-      setTrace(
-        generateLinearSearchTrace({
+      try {
+        const generated = generateLinearSearchTrace({
           array: (arrResult as { values: number[] }).values,
           target: (tgtResult as { value: number }).value,
-        })
-      );
-      return true;
+        });
+        setTrace(generated);
+        setLoadError(null);
+        return true;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setLoadError(msg);
+        return false;
+      }
     },
     [setTrace]
   );
 
-  // ── Single effect for initial loading and mode changes ───────────────────
+  // ── Single effect for initial loading and algorithm changes ───────────────
   useEffect(() => {
-    if (mode === 'array-linear-search') {
+    if (selectedAlgorithm === 'linear-search') {
       const succeeded = generateAndLoad(arrayInput, targetInput);
       if (!succeeded) {
-        // Fall back to default trace on invalid input without clearing errors
-        setTrace(
-          generateLinearSearchTrace({
-            array: [5, 2, 9, 1],
-            target: 9,
-          })
-        );
+        // Fall back to default trace from registry on invalid input without clearing input errors
+        try {
+          const fallback = getTrace('linear-search');
+          setTrace(fallback);
+          setLoadError(null);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          setLoadError(msg);
+        }
       }
     } else {
       setArrayError('');
       setTargetError('');
-      setTrace(FIXTURES[mode as keyof typeof FIXTURES].trace);
+      try {
+        const loadedTrace = getTrace(selectedAlgorithm);
+        setTrace(loadedTrace);
+        setLoadError(null);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setLoadError(msg);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, generateAndLoad]);
+  }, [selectedAlgorithm, generateAndLoad, setTrace]);
 
   // ── Generate button handler ───────────────────────────────────────────────
 
@@ -182,7 +182,7 @@ function App() {
     marginTop: 4,
   };
 
-  const activeModeIsLinearSearch = mode === 'array-linear-search';
+  const isLinearSearchActive = selectedAlgorithm === 'linear-search';
 
   return (
     <div
@@ -198,7 +198,7 @@ function App() {
         textAlign: 'left',
       }}
     >
-      {/* ── Header and Mode Selector ────────────────────────────────────── */}
+      {/* ── Header and Algorithm Picker ───────────────────────────────── */}
       <header
         style={{
           display: 'flex',
@@ -232,22 +232,22 @@ function App() {
           </p>
         </div>
 
-        {/* Visualization Mode Selector */}
+        {/* Algorithm Picker using Registry Entries */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <label
-            htmlFor="mode-select"
+            htmlFor="algorithm-select"
             style={{
               fontSize: '14px',
               fontWeight: 500,
               color: 'var(--text-h, #374151)',
             }}
           >
-            Select Visualization:
+            Algorithm:
           </label>
           <select
-            id="mode-select"
-            value={mode}
-            onChange={(e) => setMode(e.target.value as VisualizationMode)}
+            id="algorithm-select"
+            value={selectedAlgorithm}
+            onChange={(e) => setSelectedAlgorithm(e.target.value)}
             style={{
               padding: '8px 12px',
               fontSize: '14px',
@@ -258,16 +258,56 @@ function App() {
               cursor: 'pointer',
               fontWeight: 500,
             }}
-            aria-label="Select visualization mode"
+            aria-label="Select visualization algorithm"
           >
-            <option value="array-linear-search">Array Linear Search</option>
-            <option value="linked-list-traversal">Linked List Traversal</option>
+            {registryEntries.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.label}
+              </option>
+            ))}
           </select>
         </div>
       </header>
 
-      {/* ── Linear Search Input Form ────────────────────────────────────── */}
-      {activeModeIsLinearSearch && (
+      {/* ── Visible Error Banner ────────────────────────────────────────── */}
+      {loadError && (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 16px',
+            borderRadius: 8,
+            backgroundColor: '#fef2f2',
+            border: '1px solid #f87171',
+            color: '#991b1b',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+          }}
+        >
+          <span>
+            <strong>Error:</strong> {loadError}
+          </span>
+          <button
+            type="button"
+            onClick={() => setLoadError(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#991b1b',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: '14px',
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* ── Linear Search Custom Input Form ─────────────────────────────── */}
+      {isLinearSearchActive && (
         <form
           onSubmit={handleGenerate}
           noValidate
@@ -353,7 +393,7 @@ function App() {
                 color: '#ffffff',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                lineHeight: '22px', // align height with text inputs
+                lineHeight: '22px',
               }}
             >
               Generate Visualization
@@ -378,7 +418,7 @@ function App() {
             color: 'var(--text-h, #1f2937)',
           }}
         >
-          {trace?.title ?? (activeModeIsLinearSearch ? 'Array Linear Search' : 'Linked List Traversal')}
+          {trace?.title ?? 'Algorithm Visualization'}
         </h2>
         {trace?.description && (
           <p style={{ fontSize: '14px', color: 'var(--text, #4b5563)', margin: 0 }}>
@@ -387,7 +427,7 @@ function App() {
         )}
       </section>
 
-      {/* ── Visualization Canvas + Code Tracking + Controls + Explanation ─ */}
+      {/* ── Teaching UI Layout ─────────────────────────────────────────── */}
       <main
         style={{
           display: 'flex',
@@ -396,7 +436,7 @@ function App() {
           width: '100%',
         }}
       >
-        {/* Split Layout: Visualization on Left, Source Code Tracking on Right */}
+        {/* Split Layout: Visualization Canvas on Left, Source Code Tracking on Right */}
         <div
           style={{
             display: 'grid',
@@ -409,60 +449,106 @@ function App() {
           <SourceCodePanel />
         </div>
 
+        {/* Playback Controls & Timeline Scrubber */}
         <PlaybackControls />
+        <StepScrubber />
 
-        {/* Current Step Explanation & Concept Tag */}
-        {currentStepData && (
-          <div
-            style={{
-              padding: '12px 16px',
-              borderRadius: 8,
-              backgroundColor: '#f3f4f6',
-              border: '1px solid #e5e7eb',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  color: '#4b5563',
-                  letterSpacing: '0.05em',
-                }}
-              >
-                Step Explanation
-              </span>
-              {currentStepData.conceptTag && (
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 500,
-                    padding: '2px 8px',
-                    borderRadius: 9999,
-                    backgroundColor: '#e0e7ff',
-                    color: '#3730a3',
-                  }}
-                >
-                  {currentStepData.conceptTag}
-                </span>
-              )}
-            </div>
-            <p
+        {/* Variables Watch Panel & Step Explanation */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
+            gap: 16,
+            width: '100%',
+            alignItems: 'start',
+          }}
+        >
+          <VariableWatchPanel />
+
+          {/* Current Step Explanation & Concept Tag */}
+          {currentStepData ? (
+            <div
               style={{
-                fontSize: '14px',
-                color: '#1f2937',
-                margin: 0,
-                lineHeight: 1.5,
+                padding: '12px 16px',
+                borderRadius: 8,
+                backgroundColor: '#f3f4f6',
+                border: '1px solid #e5e7eb',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                minHeight: '100%',
+                boxSizing: 'border-box',
               }}
             >
-              {currentStepData.explanation}
-            </p>
-          </div>
-        )}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      color: '#4b5563',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    Step Explanation
+                  </span>
+                  {currentStepData.conceptTag && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        padding: '2px 8px',
+                        borderRadius: 9999,
+                        backgroundColor: '#e0e7ff',
+                        color: '#3730a3',
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {currentStepData.conceptTag}
+                    </span>
+                  )}
+                </div>
+
+                {currentStepData.sourceLine && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      color: '#6b7280',
+                    }}
+                  >
+                    Line {currentStepData.sourceLine}
+                  </span>
+                )}
+              </div>
+              <p
+                style={{
+                  fontSize: '14px',
+                  color: '#1f2937',
+                  margin: 0,
+                  lineHeight: 1.5,
+                }}
+              >
+                {currentStepData.explanation}
+              </p>
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: '16px',
+                borderRadius: 8,
+                backgroundColor: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                color: '#6b7280',
+                fontStyle: 'italic',
+                fontSize: '13px',
+              }}
+            >
+              No active step
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
