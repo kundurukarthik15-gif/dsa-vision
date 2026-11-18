@@ -1,0 +1,252 @@
+import type { Trace, Node, Variable } from '../vep.js';
+import { validateTrace } from '../vep.js';
+import { assertValidTrace, type TraceGenerator } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Public interface
+// ---------------------------------------------------------------------------
+
+export interface LinearSearchInput {
+  array: number[];
+  target: number;
+}
+
+// ---------------------------------------------------------------------------
+// Canonical source code representation (1-based line indexing)
+// ---------------------------------------------------------------------------
+
+export const LINEAR_SEARCH_CODE = `function linearSearch(arr, target) {
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i] === target) {
+      return i;
+    }
+  }
+  return -1;
+}`;
+
+// ---------------------------------------------------------------------------
+// Layout constants — match the reference fixture exactly
+// ---------------------------------------------------------------------------
+
+const CELL_X_ORIGIN = 100;
+const CELL_X_GAP = 150;
+const CELL_Y = 200;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Build a full snapshot of the array nodes for a given step. */
+function buildNodes(
+  array: number[],
+  currentIndex: number | null,
+  foundAt: number | null,
+  done: boolean
+): Node[] {
+  return array.map((value, idx) => {
+    let highlight: Node['highlight'] = 'idle';
+
+    if (done && foundAt !== null) {
+      // Final state: found — keep success/visited permanent.
+      if (idx === foundAt) {
+        highlight = 'success';
+      } else if (idx < foundAt) {
+        highlight = 'visited';
+      }
+    } else if (done && foundAt === null) {
+      // Final state: not found — everything visited
+      highlight = 'visited';
+    } else if (currentIndex !== null) {
+      if (idx === currentIndex) {
+        highlight = 'comparing';
+      } else if (idx < currentIndex) {
+        highlight = 'visited';
+      }
+    }
+
+    return {
+      id: String(idx),
+      kind: 'array-cell' as const,
+      label: `Index ${idx}`,
+      value,
+      position: { x: CELL_X_ORIGIN + idx * CELL_X_GAP, y: CELL_Y },
+      highlight,
+    };
+  });
+}
+
+/** Core variables present in every step. */
+function baseVars(i: number, target: number, found: boolean): Variable[] {
+  return [
+    { name: 'i', value: i, type: 'integer' },
+    { name: 'target', value: target, type: 'integer' },
+    { name: 'found', value: found, type: 'boolean' },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Generator implementation
+// ---------------------------------------------------------------------------
+
+export function generateLinearSearchTrace(input: LinearSearchInput): Trace {
+  const { array, target } = input;
+
+  // -------------------------------------------------------------------------
+  // Build steps
+  // -------------------------------------------------------------------------
+
+  type StepInput = {
+    step: number;
+    nodes: Node[];
+    variables: Variable[];
+    explanation: string;
+    conceptTag?: string;
+    sourceLine?: number;
+  };
+
+  const steps: StepInput[] = [];
+
+  // --- Step 0: Initialization ----------------------------------------------
+  steps.push({
+    step: 0,
+    nodes: buildNodes(array, null, null, false),
+    variables: [
+      { name: 'i', value: 0, type: 'integer' },
+      { name: 'target', value: target, type: 'integer' },
+      { name: 'found', value: false, type: 'boolean' },
+    ],
+    explanation:
+      array.length === 0
+        ? 'Array is empty. Nothing to search.'
+        : `Initialize the array and target. Begin searching from index 0.`,
+    conceptTag: 'initialization',
+    sourceLine: 2,
+  });
+
+  if (array.length === 0) {
+    // No comparison steps — jump straight to completion
+    steps.push({
+      step: 1,
+      nodes: [],
+      variables: [
+        { name: 'i', value: 0, type: 'integer' },
+        { name: 'target', value: target, type: 'integer' },
+        { name: 'found', value: false, type: 'boolean' },
+        { name: 'resultIndex', value: -1, type: 'integer' },
+      ],
+      explanation: 'Array is empty. Linear search completed with no result.',
+      conceptTag: 'completed',
+      sourceLine: 7,
+    });
+  } else {
+    let foundAt: number | null = null;
+
+    // --- Per-index comparison steps ----------------------------------------
+    for (let i = 0; i < array.length; i++) {
+      const isMatch = array[i] === target;
+
+      // Comparison step: highlight current cell as "comparing"
+      steps.push({
+        step: steps.length,
+        nodes: buildNodes(array, i, null, false),
+        variables: baseVars(i, target, false),
+        explanation: isMatch
+          ? `Compare array[${i}] = ${array[i]} with target ${target}. They are equal — a match will be recorded.`
+          : `Compare array[${i}] = ${array[i]} with target ${target}. They are not equal.`,
+        conceptTag: 'comparison',
+        sourceLine: 3,
+      });
+
+      if (isMatch) {
+        foundAt = i;
+
+        // "Found" step: switch cell to "success", set found=true
+        steps.push({
+          step: steps.length,
+          nodes: buildNodes(array, null, foundAt, true),
+          variables: [
+            { name: 'i', value: i, type: 'integer' },
+            { name: 'target', value: target, type: 'integer' },
+            { name: 'found', value: true, type: 'boolean' },
+          ],
+          explanation: `Target matches array[${i}]. Mark element as found and set found to true.`,
+          conceptTag: 'target-found',
+          sourceLine: 4,
+        });
+
+        // "Completed" step: add resultIndex
+        steps.push({
+          step: steps.length,
+          nodes: buildNodes(array, null, foundAt, true),
+          variables: [
+            { name: 'i', value: i, type: 'integer' },
+            { name: 'target', value: target, type: 'integer' },
+            { name: 'found', value: true, type: 'boolean' },
+            { name: 'resultIndex', value: i, type: 'integer' },
+          ],
+          explanation: `Linear search completed successfully. Target ${target} was found at index ${i}.`,
+          conceptTag: 'completed',
+          sourceLine: 4,
+        });
+
+        break; // stop at first match
+      }
+    }
+
+    // --- Not-found completion step -----------------------------------------
+    if (foundAt === null) {
+      steps.push({
+        step: steps.length,
+        nodes: buildNodes(array, null, null, true),
+        variables: [
+          { name: 'i', value: array.length - 1, type: 'integer' },
+          { name: 'target', value: target, type: 'integer' },
+          { name: 'found', value: false, type: 'boolean' },
+          { name: 'resultIndex', value: -1, type: 'integer' },
+        ],
+        explanation: `Linear search completed. Target ${target} was not found in the array.`,
+        conceptTag: 'completed',
+        sourceLine: 7,
+      });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Assemble and validate the trace
+  // -------------------------------------------------------------------------
+
+  const raw = {
+    id: 'array-linear-search',
+    title: `Linear Search: find ${target} in [${array.join(', ')}]`,
+    description:
+      'Visualizes how linear search checks each array element until the target is found.',
+    language: 'javascript' as const,
+    track: 'dsa' as const,
+    algorithm: 'linear-search',
+    code: LINEAR_SEARCH_CODE,
+    input: { array, target },
+    totalSteps: steps.length,
+    steps: steps.map((s) => ({
+      ...s,
+      edges: [],
+    })),
+  };
+
+  const validated = validateTrace(raw);
+  assertValidTrace(validated);
+  return validated;
+}
+
+// ---------------------------------------------------------------------------
+// Generator contract instance
+// ---------------------------------------------------------------------------
+
+export const linearSearchGenerator: TraceGenerator<LinearSearchInput> = {
+  id: 'array-linear-search',
+  title: 'Linear Search',
+  description: 'Visualizes how linear search checks each array element until the target is found.',
+  language: 'javascript',
+  track: 'dsa',
+  defaultInput: { array: [5, 2, 9, 1], target: 9 },
+  generate: generateLinearSearchTrace,
+};

@@ -5,11 +5,15 @@ import SourceCodePanel from './components/SourceCodePanel';
 import PlaybackControls from './components/PlaybackControls';
 import StepScrubber from './components/StepScrubber';
 import VariableWatchPanel from './components/VariableWatchPanel';
-import { registryEntries, getTrace } from './generators/registry';
-import { generateLinearSearchTrace } from './generators/linearSearchTrace';
+import ErrorBoundary from './components/ErrorBoundary';
+import {
+  useTraces,
+  useTrace,
+  generateCustomLinearSearchTrace,
+} from './api';
 
 // ---------------------------------------------------------------------------
-// Input parsing helpers for Linear Search
+// Input parsing helpers for Linear Search custom form
 // ---------------------------------------------------------------------------
 
 function parseArrayInput(raw: string): { values: number[] } | { error: string } {
@@ -51,29 +55,53 @@ function parseTargetInput(raw: string): { value: number } | { error: string } {
 
 const DEFAULT_ARRAY = '5, 2, 9, 1';
 const DEFAULT_TARGET = '9';
+const DEFAULT_ALGORITHM_ID = 'array-linear-search';
 
 // ---------------------------------------------------------------------------
 // App Component
 // ---------------------------------------------------------------------------
 
 function App() {
-  const [selectedAlgorithm, setSelectedAlgorithm] = useState<string>('linear-search');
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState<string>(DEFAULT_ALGORITHM_ID);
+  const [localFormError, setLocalFormError] = useState<string | null>(null);
 
-  // Linear search form state
+  // Linear search custom form state
   const [arrayInput, setArrayInput] = useState(DEFAULT_ARRAY);
   const [targetInput, setTargetInput] = useState(DEFAULT_TARGET);
   const [arrayError, setArrayError] = useState('');
   const [targetError, setTargetError] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const setTrace = usePlaybackStore((state) => state.setTrace);
   const trace = usePlaybackStore((state) => state.trace);
   const currentStepData = useCurrentStep();
 
-  // ── Load a generated linear search trace ──────────────────────────────────
+  // ── API Integration ───────────────────────────────────────────────────────
+  const {
+    traces: algorithmList,
+    loading: tracesLoading,
+    error: tracesError,
+    refetch: refetchTraces,
+  } = useTraces();
 
+  const {
+    trace: apiTrace,
+    loading: traceLoading,
+    error: traceError,
+    refetch: refetchTrace,
+  } = useTrace(selectedAlgorithm);
+
+  // When API trace successfully loads, synchronize it with the playback store
+  useEffect(() => {
+    if (apiTrace) {
+      setTrace(apiTrace);
+      setLocalFormError(null);
+    }
+  }, [apiTrace, setTrace]);
+
+  // ── Custom Linear Search Trace Generation via Backend API ─────────────────
   const generateAndLoad = useCallback(
-    (rawArray: string, rawTarget: string): boolean => {
+    async (rawArray: string, rawTarget: string): Promise<boolean> => {
       const arrResult = parseArrayInput(rawArray);
       const tgtResult = parseTargetInput(rawTarget);
 
@@ -95,60 +123,36 @@ function App() {
 
       if (!valid) return false;
 
+      setIsGenerating(true);
+      setLocalFormError(null);
+
       try {
-        const generated = generateLinearSearchTrace({
-          array: (arrResult as { values: number[] }).values,
+        const customTrace = await generateCustomLinearSearchTrace({
+          values: (arrResult as { values: number[] }).values,
           target: (tgtResult as { value: number }).value,
         });
-        setTrace(generated);
-        setLoadError(null);
+        setTrace(customTrace);
+        setLocalFormError(null);
         return true;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        setLoadError(msg);
+        setLocalFormError(msg);
         return false;
+      } finally {
+        setIsGenerating(false);
       }
     },
     [setTrace]
   );
 
-  // ── Single effect for initial loading and algorithm changes ───────────────
-  useEffect(() => {
-    if (selectedAlgorithm === 'linear-search') {
-      const succeeded = generateAndLoad(arrayInput, targetInput);
-      if (!succeeded) {
-        // Fall back to default trace from registry on invalid input without clearing input errors
-        try {
-          const fallback = getTrace('linear-search');
-          setTrace(fallback);
-          setLoadError(null);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          setLoadError(msg);
-        }
-      }
-    } else {
-      setArrayError('');
-      setTargetError('');
-      try {
-        const loadedTrace = getTrace(selectedAlgorithm);
-        setTrace(loadedTrace);
-        setLoadError(null);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setLoadError(msg);
-      }
-    }
-  }, [selectedAlgorithm, generateAndLoad, setTrace]);
-
-  // ── Generate button handler ───────────────────────────────────────────────
-
-  function handleGenerate(e: React.FormEvent) {
+  async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
-    generateAndLoad(arrayInput, targetInput);
+    await generateAndLoad(arrayInput, targetInput);
   }
 
-  // ── Shared style tokens ───────────────────────────────────────────────────
+  // ── Styling Tokens ────────────────────────────────────────────────────────
+  const isLinearSearchActive =
+    selectedAlgorithm === 'array-linear-search' || selectedAlgorithm === 'linear-search';
 
   const inputStyle: React.CSSProperties = {
     padding: '7px 10px',
@@ -182,375 +186,543 @@ function App() {
     marginTop: 4,
   };
 
-  const isLinearSearchActive = selectedAlgorithm === 'linear-search';
+  const buttonStyle: React.CSSProperties = {
+    padding: '7px 16px',
+    fontSize: '14px',
+    fontWeight: 600,
+    borderRadius: 6,
+    border: '1px solid #2563eb',
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    lineHeight: '20px',
+  };
+
+  const retryButtonStyle: React.CSSProperties = {
+    padding: '6px 14px',
+    fontSize: '13px',
+    fontWeight: 600,
+    borderRadius: 6,
+    border: '1px solid #dc2626',
+    backgroundColor: '#dc2626',
+    color: '#ffffff',
+    cursor: 'pointer',
+    lineHeight: '18px',
+  };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        width: '100%',
-        maxWidth: 1100,
-        margin: '0 auto',
-        padding: '24px 20px',
-        boxSizing: 'border-box',
-        gap: 20,
-        textAlign: 'left',
-      }}
-    >
-      {/* ── Header and Algorithm Picker ───────────────────────────────── */}
-      <header
+    <ErrorBoundary title="DSA Vision Application Error">
+      <div
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 16,
-          borderBottom: '1px solid var(--border, #e5e7eb)',
-          paddingBottom: 16,
+          flexDirection: 'column',
+          width: '100%',
+          maxWidth: 1100,
+          margin: '0 auto',
+          padding: '24px 20px',
+          boxSizing: 'border-box',
+          gap: 20,
+          textAlign: 'left',
         }}
       >
-        <div>
-          <h1
-            style={{
-              fontSize: '28px',
-              fontWeight: 700,
-              margin: '0 0 6px',
-              color: 'var(--text-h, #111827)',
-            }}
-          >
-            DSA Vision
-          </h1>
-          <p
-            style={{
-              fontSize: '14px',
-              color: 'var(--text, #6b7280)',
-              margin: 0,
-            }}
-          >
-            Interactive Visual Execution Protocol (VEP) Player
-          </p>
-        </div>
-
-        {/* Algorithm Picker using Registry Entries */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <label
-            htmlFor="algorithm-select"
-            style={{
-              fontSize: '14px',
-              fontWeight: 500,
-              color: 'var(--text-h, #374151)',
-            }}
-          >
-            Algorithm:
-          </label>
-          <select
-            id="algorithm-select"
-            value={selectedAlgorithm}
-            onChange={(e) => setSelectedAlgorithm(e.target.value)}
-            style={{
-              padding: '8px 12px',
-              fontSize: '14px',
-              borderRadius: 6,
-              border: '1px solid #d1d5db',
-              backgroundColor: '#ffffff',
-              color: '#1f2937',
-              cursor: 'pointer',
-              fontWeight: 500,
-            }}
-            aria-label="Select visualization algorithm"
-          >
-            {registryEntries.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </header>
-
-      {/* ── Visible Error Banner ────────────────────────────────────────── */}
-      {loadError && (
-        <div
-          role="alert"
+        {/* ── Header and Algorithm Picker ───────────────────────────────── */}
+        <header
           style={{
-            padding: '12px 16px',
-            borderRadius: 8,
-            backgroundColor: '#fef2f2',
-            border: '1px solid #f87171',
-            color: '#991b1b',
-            fontSize: '14px',
             display: 'flex',
-            alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 8,
-          }}
-        >
-          <span>
-            <strong>Error:</strong> {loadError}
-          </span>
-          <button
-            type="button"
-            onClick={() => setLoadError(null)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#991b1b',
-              cursor: 'pointer',
-              fontWeight: 700,
-              fontSize: '14px',
-            }}
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* ── Linear Search Custom Input Form ─────────────────────────────── */}
-      {isLinearSearchActive && (
-        <form
-          onSubmit={handleGenerate}
-          noValidate
-          style={{
-            display: 'flex',
+            alignItems: 'center',
             flexWrap: 'wrap',
-            alignItems: 'flex-end',
             gap: 16,
-            padding: '14px 16px',
-            backgroundColor: '#f8fafc',
-            border: '1px solid #e2e8f0',
-            borderRadius: 8,
+            borderBottom: '1px solid var(--border, #e5e7eb)',
+            paddingBottom: 16,
           }}
-          aria-label="Linear search input form"
         >
-          {/* Array field */}
-          <div style={{ display: 'flex', flexDirection: 'column', flex: '2 1 220px', minWidth: 0 }}>
-            <label htmlFor="array-input" style={labelStyle}>
-              Array{' '}
-              <span style={{ fontWeight: 400, color: '#6b7280' }}>(comma-separated integers)</span>
-            </label>
-            <input
-              id="array-input"
-              type="text"
-              value={arrayInput}
-              onChange={(e) => {
-                setArrayInput(e.target.value);
-                if (arrayError) setArrayError('');
-              }}
-              placeholder="e.g. 5, 2, 9, 1"
-              style={arrayError ? inputErrorStyle : inputStyle}
-              aria-describedby={arrayError ? 'array-error' : undefined}
-              aria-invalid={Boolean(arrayError)}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            {arrayError && (
-              <span id="array-error" role="alert" style={errorMsgStyle}>
-                {arrayError}
-              </span>
-            )}
-          </div>
-
-          {/* Target field */}
-          <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 110px', minWidth: 0 }}>
-            <label htmlFor="target-input" style={labelStyle}>
-              Target{' '}
-              <span style={{ fontWeight: 400, color: '#6b7280' }}>(integer)</span>
-            </label>
-            <input
-              id="target-input"
-              type="text"
-              value={targetInput}
-              onChange={(e) => {
-                setTargetInput(e.target.value);
-                if (targetError) setTargetError('');
-              }}
-              placeholder="e.g. 9"
-              style={targetError ? inputErrorStyle : inputStyle}
-              aria-describedby={targetError ? 'target-error' : undefined}
-              aria-invalid={Boolean(targetError)}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            {targetError && (
-              <span id="target-error" role="alert" style={errorMsgStyle}>
-                {targetError}
-              </span>
-            )}
-          </div>
-
-          {/* Generate button */}
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-            <button
-              type="submit"
+          <div>
+            <h1
               style={{
-                padding: '7px 18px',
-                fontSize: '14px',
-                fontWeight: 600,
-                borderRadius: 6,
-                border: '1px solid #2563eb',
-                backgroundColor: '#2563eb',
-                color: '#ffffff',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                lineHeight: '22px',
+                fontSize: '28px',
+                fontWeight: 700,
+                margin: '0 0 6px',
+                color: 'var(--text-h, #111827)',
               }}
             >
-              Generate Visualization
+              DSA Vision
+            </h1>
+            <p
+              style={{
+                fontSize: '14px',
+                color: 'var(--text, #6b7280)',
+                margin: 0,
+              }}
+            >
+              Interactive Visual Execution Protocol (VEP) Player
+            </p>
+          </div>
+
+          {/* Algorithm Picker */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <label
+              htmlFor="algorithm-select"
+              style={{
+                fontSize: '14px',
+                fontWeight: 500,
+                color: 'var(--text-h, #374151)',
+              }}
+            >
+              Algorithm:
+            </label>
+            <select
+              id="algorithm-select"
+              value={selectedAlgorithm}
+              onChange={(e) => {
+                setSelectedAlgorithm(e.target.value);
+                setLocalFormError(null);
+              }}
+              disabled={tracesLoading || Boolean(tracesError)}
+              style={{
+                padding: '8px 12px',
+                fontSize: '14px',
+                borderRadius: 6,
+                border: '1px solid #d1d5db',
+                backgroundColor: tracesLoading ? '#f9fafb' : '#ffffff',
+                color: '#1f2937',
+                cursor: tracesLoading ? 'wait' : 'pointer',
+                fontWeight: 500,
+              }}
+              aria-label="Select visualization algorithm"
+            >
+              {tracesLoading && <option value="">Loading algorithms...</option>}
+              {tracesError && <option value="">Algorithms unavailable</option>}
+              {!tracesLoading &&
+                !tracesError &&
+                algorithmList.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.label}
+                  </option>
+                ))}
+            </select>
+            {tracesLoading && (
+              <span style={{ fontSize: '12px', color: '#6b7280' }}>Loading...</span>
+            )}
+          </div>
+        </header>
+
+        {/* ── Metadata Loading Error Banner ─────────────────────────────── */}
+        {tracesError && (
+          <div
+            role="alert"
+            style={{
+              padding: '12px 16px',
+              borderRadius: 8,
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fecaca',
+              color: '#991b1b',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div>
+              <strong>Failed to load algorithms list:</strong> {tracesError}
+              <div style={{ fontSize: '12px', color: '#b91c1c', marginTop: 4 }}>
+                Ensure backend API is running on port 3001.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => refetchTraces()}
+              style={retryButtonStyle}
+            >
+              Retry
             </button>
           </div>
-        </form>
-      )}
-
-      {/* ── Visualization Title and Description ────────────────────────── */}
-      <section
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
-        }}
-      >
-        <h2
-          style={{
-            fontSize: '20px',
-            fontWeight: 600,
-            margin: 0,
-            color: 'var(--text-h, #1f2937)',
-          }}
-        >
-          {trace?.title ?? 'Algorithm Visualization'}
-        </h2>
-        {trace?.description && (
-          <p style={{ fontSize: '14px', color: 'var(--text, #4b5563)', margin: 0 }}>
-            {trace.description}
-          </p>
         )}
-      </section>
 
-      {/* ── Teaching UI Layout ─────────────────────────────────────────── */}
-      <main
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
-          width: '100%',
-        }}
-      >
-        {/* Split Layout: Visualization Canvas on Left, Source Code Tracking on Right */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))',
-            gap: 16,
-            width: '100%',
-          }}
-        >
-          <VisualizationCanvas />
-          <SourceCodePanel />
-        </div>
+        {/* ── Local Form Error Banner ───────────────────────────────────── */}
+        {localFormError && (
+          <div
+            role="alert"
+            style={{
+              padding: '12px 16px',
+              borderRadius: 8,
+              backgroundColor: '#fef2f2',
+              border: '1px solid #f87171',
+              color: '#991b1b',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}
+          >
+            <span>
+              <strong>Error:</strong> {localFormError}
+            </span>
+            <button
+              type="button"
+              onClick={() => setLocalFormError(null)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#991b1b',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '14px',
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
-        {/* Playback Controls & Timeline Scrubber */}
-        <PlaybackControls />
-        <StepScrubber />
+        {/* ── Trace Fetch Error Banner ──────────────────────────────────── */}
+        {traceError && (
+          <div
+            role="alert"
+            style={{
+              padding: '14px 18px',
+              borderRadius: 8,
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fecaca',
+              color: '#991b1b',
+              fontSize: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: '18px' }}>⚠️</span>
+              <strong>Error loading trace:</strong>
+              <span>{traceError}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => refetchTrace()}
+                style={retryButtonStyle}
+              >
+                Retry Request
+              </button>
+              {isLinearSearchActive && (
+                <button
+                  type="button"
+                  disabled={isGenerating}
+                  onClick={() => generateAndLoad(arrayInput, targetInput)}
+                  style={{
+                    ...buttonStyle,
+                    backgroundColor: '#4b5563',
+                    borderColor: '#4b5563',
+                    fontSize: '13px',
+                    padding: '6px 14px',
+                    opacity: isGenerating ? 0.7 : 1,
+                    cursor: isGenerating ? 'wait' : 'pointer',
+                  }}
+                >
+                  {isGenerating ? 'Generating...' : 'Retry Custom Generation'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
-        {/* Variables Watch Panel & Step Explanation */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
-            gap: 16,
-            width: '100%',
-            alignItems: 'start',
-          }}
-        >
-          <VariableWatchPanel />
-
-          {/* Current Step Explanation & Concept Tag */}
-          {currentStepData ? (
+        {/* ── Linear Search Custom Input Form ───────────────────────────── */}
+        {isLinearSearchActive && (
+          <form
+            onSubmit={handleGenerate}
+            noValidate
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'flex-end',
+              gap: 16,
+              padding: '14px 16px',
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+            }}
+            aria-label="Linear search input form"
+          >
+            {/* Array field */}
             <div
               style={{
-                padding: '12px 16px',
-                borderRadius: 8,
-                backgroundColor: '#f3f4f6',
-                border: '1px solid #e5e7eb',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 6,
-                minHeight: '100%',
-                boxSizing: 'border-box',
+                flex: '2 1 220px',
+                minWidth: 0,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      color: '#4b5563',
-                      letterSpacing: '0.05em',
-                    }}
-                  >
-                    Step Explanation
-                  </span>
-                  {currentStepData.conceptTag && (
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        padding: '2px 8px',
-                        borderRadius: 9999,
-                        backgroundColor: '#e0e7ff',
-                        color: '#3730a3',
-                        textTransform: 'capitalize',
-                      }}
-                    >
-                      {currentStepData.conceptTag}
-                    </span>
-                  )}
-                </div>
-
-                {currentStepData.sourceLine && (
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 500,
-                      color: '#6b7280',
-                    }}
-                  >
-                    Line {currentStepData.sourceLine}
-                  </span>
-                )}
-              </div>
-              <p
-                style={{
-                  fontSize: '14px',
-                  color: '#1f2937',
-                  margin: 0,
-                  lineHeight: 1.5,
+              <label htmlFor="array-input" style={labelStyle}>
+                Array{' '}
+                <span style={{ fontWeight: 400, color: '#6b7280' }}>
+                  (comma-separated integers)
+                </span>
+              </label>
+              <input
+                id="array-input"
+                type="text"
+                value={arrayInput}
+                disabled={isGenerating}
+                onChange={(e) => {
+                  setArrayInput(e.target.value);
+                  if (arrayError) setArrayError('');
                 }}
-              >
-                {currentStepData.explanation}
-              </p>
+                placeholder="e.g. 5, 2, 9, 1"
+                style={arrayError ? inputErrorStyle : inputStyle}
+                aria-describedby={arrayError ? 'array-error' : undefined}
+                aria-invalid={Boolean(arrayError)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {arrayError && (
+                <span id="array-error" role="alert" style={errorMsgStyle}>
+                  {arrayError}
+                </span>
+              )}
             </div>
-          ) : (
+
+            {/* Target field */}
             <div
               style={{
-                padding: '16px',
-                borderRadius: 8,
-                backgroundColor: '#f9fafb',
-                border: '1px solid #e5e7eb',
-                color: '#6b7280',
-                fontStyle: 'italic',
-                fontSize: '13px',
+                display: 'flex',
+                flexDirection: 'column',
+                flex: '1 1 110px',
+                minWidth: 0,
               }}
             >
-              No active step
+              <label htmlFor="target-input" style={labelStyle}>
+                Target <span style={{ fontWeight: 400, color: '#6b7280' }}>(integer)</span>
+              </label>
+              <input
+                id="target-input"
+                type="text"
+                value={targetInput}
+                disabled={isGenerating}
+                onChange={(e) => {
+                  setTargetInput(e.target.value);
+                  if (targetError) setTargetError('');
+                }}
+                placeholder="e.g. 9"
+                style={targetError ? inputErrorStyle : inputStyle}
+                aria-describedby={targetError ? 'target-error' : undefined}
+                aria-invalid={Boolean(targetError)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {targetError && (
+                <span id="target-error" role="alert" style={errorMsgStyle}>
+                  {targetError}
+                </span>
+              )}
             </div>
+
+            {/* Generate button */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+              }}
+            >
+              <button
+                type="submit"
+                disabled={isGenerating}
+                style={{
+                  ...buttonStyle,
+                  opacity: isGenerating ? 0.7 : 1,
+                  cursor: isGenerating ? 'wait' : 'pointer',
+                }}
+              >
+                {isGenerating ? 'Generating...' : 'Generate Visualization'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* ── Trace Loading Indicator ───────────────────────────────────── */}
+        {traceLoading && !trace && (
+          <div
+            style={{
+              padding: '24px',
+              borderRadius: 8,
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              textAlign: 'center',
+              color: '#64748b',
+              fontSize: '14px',
+            }}
+          >
+            <span>Loading algorithm visualization trace...</span>
+          </div>
+        )}
+
+        {/* ── Visualization Title and Description ──────────────────────── */}
+        <section
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h2
+              style={{
+                fontSize: '20px',
+                fontWeight: 600,
+                margin: 0,
+                color: 'var(--text-h, #1f2937)',
+              }}
+            >
+              {trace?.title ?? 'Algorithm Visualization'}
+            </h2>
+            {(traceLoading || isGenerating) && (
+              <span style={{ fontSize: '12px', color: '#2563eb' }}>(updating...)</span>
+            )}
+          </div>
+          {trace?.description && (
+            <p style={{ fontSize: '14px', color: 'var(--text, #4b5563)', margin: 0 }}>
+              {trace.description}
+            </p>
           )}
-        </div>
-      </main>
-    </div>
+        </section>
+
+        {/* ── Teaching UI Layout Wrapped in Error Boundary ─────────────── */}
+        <ErrorBoundary title="Visualization Canvas Error">
+          <main
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              width: '100%',
+            }}
+          >
+            {/* Split Layout: Visualization Canvas on Left, Source Code Tracking on Right */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))',
+                gap: 16,
+                width: '100%',
+              }}
+            >
+              <VisualizationCanvas />
+              <SourceCodePanel />
+            </div>
+
+            {/* Playback Controls & Timeline Scrubber */}
+            <PlaybackControls />
+            <StepScrubber />
+
+            {/* Variables Watch Panel & Step Explanation */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
+                gap: 16,
+                width: '100%',
+                alignItems: 'start',
+              }}
+            >
+              <VariableWatchPanel />
+
+              {/* Current Step Explanation & Concept Tag */}
+              {currentStepData ? (
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    backgroundColor: '#f3f4f6',
+                    border: '1px solid #e5e7eb',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    minHeight: '100%',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          color: '#4b5563',
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        Step Explanation
+                      </span>
+                      {currentStepData.conceptTag && (
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            padding: '2px 8px',
+                            borderRadius: 9999,
+                            backgroundColor: '#e0e7ff',
+                            color: '#3730a3',
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {currentStepData.conceptTag}
+                        </span>
+                      )}
+                    </div>
+
+                    {currentStepData.sourceLine && (
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 500,
+                          color: '#6b7280',
+                        }}
+                      >
+                        Line {currentStepData.sourceLine}
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    style={{
+                      fontSize: '14px',
+                      color: '#1f2937',
+                      margin: 0,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {currentStepData.explanation}
+                  </p>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    padding: '16px',
+                    borderRadius: 8,
+                    backgroundColor: '#f9fafb',
+                    border: '1px solid #e5e7eb',
+                    color: '#6b7280',
+                    fontStyle: 'italic',
+                    fontSize: '13px',
+                  }}
+                >
+                  No active step
+                </div>
+              )}
+            </div>
+          </main>
+        </ErrorBoundary>
+      </div>
+    </ErrorBoundary>
   );
 }
 
